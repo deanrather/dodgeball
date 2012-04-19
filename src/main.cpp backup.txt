@@ -1,0 +1,1243 @@
+//  Dodgeball
+//by Dean Rather.
+
+//--------------------------------------------------------------------------------
+
+//Standrad Template Libary
+#include <stdlib.h>
+
+//Standard Input/Output header file
+#include <stdio.h>
+
+//So I can have stings!
+#include <string>
+
+//For couting stuff to stdout.txt
+#include <iostream>
+
+//for time
+#include <ctime>
+
+//Vectors are used to store ball instances
+#include <vector>
+
+//Maps are used to store image and sound data
+#include <map>
+
+//Maths Functions
+#include <math.h>
+
+//Main SDL Functions
+#include "SDL.h"
+
+//Used for SDL Audio
+#include "SDL_mixer.h"
+
+//Used to write text w/ SDL
+#include "SDL_ttf.h"
+
+//Used for text functions
+#include <sstream>
+
+
+
+//string stuff
+template <class T>
+inline std::string toString(T data){
+	std::ostringstream s;
+	s << data;
+	return s.str();
+}
+
+using namespace std;
+
+//Constants:
+const int WINDOW_WIDTH  = 800,
+          WINDOW_HEIGHT = 600,
+          WINDOW_DEPTH  = 32,
+          FPS           = 60,
+          FRAME_RATE    = 1000/FPS,
+          BALLD         = 30,
+          CURSORD       = 64,
+          ARENAX        = 47,
+          ARENAY        = 53,
+          ARENAW        = 583,
+          ARENAH        = 522,
+          RBARX         = 665,
+          RBARY         = 17,
+          RBARW         = 787-RBARX,
+          RBARH         = 585-RBARY,
+          MAXSPEED      = 9,
+          MINSPEED      = 7,
+          MANW          = 36,
+          MANH          = 54,
+          FONTSIZE      = 20,
+          STARTBALLS    = 5,
+          NEWBALLDELAY  = 3;
+const bool FULLSCREEN = false;
+
+//Globals:
+enum States
+{
+     MENU,
+     GAME,
+     LEARN,
+     CREDITS,
+     QUIT
+};
+
+int STATE         = MENU,
+    mouseX        = 0,
+    mouseY        = 0,
+    origTime      = 0,
+    Timer         = 0,
+    LastUpdate    = 0,
+    Seconds       = 0,
+    GameSeconds   = 0,
+    OldFrames     = 0,
+    Frames        = 0,
+    Hit           = 0,
+    lastBallSpawn = 0,
+    middleness    = 0,
+    score         = 0,
+    Balls         = 0;
+
+bool isRunning  = true,
+     paused     = false,
+     keyUp      = false,
+     keyDown    = false,
+     keyLeft    = false,
+     keyRight   = false,
+     keyReturn  = false,
+     keySpace   = false,
+     keyM       = false,
+     keyEsc     = false,
+     mouseDown  = false,
+     slowBalls  = false,
+     toggler    = false,
+     mute       = false;
+
+//SDL Surfaces
+map <string, SDL_Surface*> img;
+SDL_Surface *screen;
+const string imageNames[] = {"menu",
+                             "cursor",
+                             "paused",
+                             "arena",
+                             "man",
+                             "ball",
+                             "quit",
+                             "icon",
+                             "credits2",
+                             "learn2",
+                             "play2",
+                             "x2",};
+const int imageCount = sizeof(imageNames) / sizeof(string);
+
+
+//sounds
+Mix_Music *music;
+//Mix_Chunk *spawn;
+
+//fonts
+TTF_Font* font;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//--------------------------------------------------------------------------------
+
+
+//#include "header.cpp"
+            
+//fn prototypes
+void beginSDL(),
+     endSDL(),
+     drawScreen(),
+     drawImage(SDL_Surface *img,
+               SDL_Surface *dest,
+               int x, int y),
+     game(),
+     pause(),
+     learn(),
+     credits(),
+     endGame(),
+     newBall(),
+     couter(),
+     printDetails(),
+     deleteBall(),
+     updateScore(),
+     DisplayText(string text, int x, int y),
+     setupGame();
+int  menu(),
+     getUI();
+inline int Random(int X, int Y),
+           abs(int x),
+           square(int x),
+           distance(int X1, int Y1, int X2, int Y2),
+           about(int num, int tolerance);
+bool outOfBounds(int x, int y),
+     toggle(bool option);
+inline void updateTimer();
+string wordNum(int num);
+
+//clases
+struct Man
+{
+public:
+       bool visible,
+            invulnerable;
+       int health,
+           invulStart,
+           invulTimer,
+           slow,
+           inverters,
+           emp;
+           
+       Man()
+       {
+            reset();
+       }
+       
+       void invul(int time)
+       {
+            invulStart = GameSeconds;
+            invulTimer = time;
+            visible = false;
+            invulnerable = true;
+       }
+       
+       void draw()
+       {
+          if(invulTimer < GameSeconds - invulStart || GameSeconds < 2)
+          {
+            visible = true;
+            invulnerable = false;
+          }
+          
+          if(visible)
+          {
+            drawImage(img["man"], screen,
+                      mouseX - (MANW/2),
+                      mouseY - (MANH/2));
+            visible = false;
+          }
+          else
+            visible = true;
+       }
+       
+       void reset()
+       {            
+            visible      = true;
+            invulnerable = false;
+            health       = 3;
+            invulStart   = 0;
+            invulTimer   = 0;
+            slow         = 5;
+            inverters    = 3;
+            emp          = 3;
+       }
+};
+Man man;
+
+struct Ball
+{
+   //X & Y Pos, Speed, creation Time, & dx & dy directions.
+   int X, Y, S, T, dx, dy;
+   bool flashing,
+        visible,
+        beenHit;
+   
+   Ball()
+   {
+       X = Random(ARENAX + BALLD, ARENAX + ARENAW - BALLD);
+       Y = Random(ARENAY + BALLD, ARENAY + ARENAH - BALLD);
+       S = Random(MINSPEED, MAXSPEED);
+       T = GameSeconds;
+       flashing = true;
+       visible  = false;
+       beenHit  = false;
+       
+       int tolerance = 70;
+       if (Random(0,1))
+           dx = about(S, tolerance);
+       else
+           dx = about(-S, tolerance);
+           
+       if (Random(0,1))
+           dy = about(S, tolerance);
+       else
+           dy = about(-S, tolerance);
+           
+       if (dy == dx)
+       {
+          if (Random(0,1))
+             dy++;
+          else
+             dx++;
+       }
+       
+       Balls++;
+   }
+      
+   void moveBall()
+   {        
+       //create demp dir x and y
+       int tdx = dx,
+           tdy = dy;
+
+       //toggle slowBalls
+       if (keySpace)
+         slowBalls = true;
+       else
+         slowBalls = false;
+       
+       if (slowBalls)
+       {
+         tdx = dx/2;
+         tdy = dy/2;
+       }
+       
+       //create temp X and Y's
+       int tX = X + tdx;
+       int tY = Y + tdy;
+       
+       //test if it's a bounce.
+       if(outOfBounds(tX + (BALLD/2), tY + (BALLD/2)) ||
+          outOfBounds(tX - (BALLD/2), tY - (BALLD/2)) )
+       {
+         //test wether it's vertically or horizontally OOB.
+         if(outOfBounds(tX + (BALLD/2), ARENAW/2) ||
+            outOfBounds(tX - (BALLD/2), ARENAW/2) ) // horz
+           dx *= -1;
+         if(outOfBounds(ARENAH/2, tY + (BALLD/2)) ||
+            outOfBounds(ARENAH/2, tY - (BALLD/2)) ) // vert
+           dy *= -1;
+       }
+       else
+       {
+         X = tX;
+         Y = tY;
+       }
+       
+       if (GameSeconds - T > 1 && !man.invulnerable || GameSeconds < 1)
+       {
+           flashing = false;
+           //get distance from man
+           /*
+           int d = distance(mouseX, mouseY, X, Y);
+           if (d <= (BALLD/2)+(MANW/2))
+           */
+           if (X+BALLD > mouseX && X < mouseX + MANW &&
+               Y+BALLD > mouseY && Y < mouseY + MANH)
+           {
+                 Hit ++;
+                 man.invul(1);
+                 beenHit = true;
+           }
+       }
+              
+       if(!flashing || visible )
+       {
+           drawImage(img["ball"], screen, X - (BALLD/2), Y - (BALLD/2));
+           visible = false;
+       }
+       else
+           visible = true;
+       
+   }
+   
+};
+vector <Ball*> BallVector;
+
+
+class Button
+{
+public:
+    int x, y, w, h;
+        
+    Button(int x, int y, int w, int h):
+           x(x), y(y), w(w), h(h) { }
+    
+    bool inBounds(int mx, int my)
+    {
+         if(mx > x && mx < x+w &&
+            my > y && my < y+h)
+            return true;
+         else
+            return false;
+    }
+    
+};
+
+Button Quit(700,    0,   100, 100),
+       Play(370,    220, 361, 81), 
+       Learn(412,   317, 324, 77), 
+       Credits(436, 433, 302, 106); 
+
+//main fn
+int main(int argc, char *argv[])
+{
+    //start up
+    beginSDL();
+    srand(time(0));
+    
+    //loop game
+    while(STATE != QUIT)
+    {
+        STATE = menu();
+        switch(STATE)
+        {
+        case GAME:
+            isRunning = true;
+            setupGame();
+            while(isRunning)
+            {
+                getUI();
+                game();
+                drawScreen();
+            }
+            endGame();
+            break;
+                                     
+        case LEARN:
+             learn();
+             break;
+             
+        case CREDITS:
+             credits();
+             break;
+        }//end switch
+    }    
+    endSDL();
+    return 0;
+}
+
+void game()
+{
+     
+    if (keyEsc)
+      {
+          isRunning = false;
+          STATE = MENU;
+      }
+    
+    if (paused)
+    {
+      Mix_FadeOutMusic(0);
+      // (!Mix_PausedMusic())
+      //  Mix_PauseMusic();
+      //Mix_HaltMusic();
+    }
+    else //not paused
+    {           
+        if (mute)
+        {
+           // (!Mix_PausedMusic())
+           //  Mix_PauseMusic();
+        }
+        else
+        {
+            
+           // (Mix_PausedMusic())
+           //  Mix_ResumeMusic();
+           if (!Mix_PlayingMusic())
+             Mix_PlayMusic(music, -1);
+               
+        }
+        
+        //make a new ball if need be
+        if (GameSeconds >= lastBallSpawn + NEWBALLDELAY)
+        {
+          lastBallSpawn += NEWBALLDELAY;
+          newBall();
+        }
+        
+        //Any extra points
+        score ++;
+    }
+}
+
+int menu()
+{    
+    while (true)
+    {
+        getUI();
+        
+        if ((Quit.inBounds(mouseX, mouseY) && mouseDown))
+           return QUIT;
+           
+        if (Play.inBounds(mouseX, mouseY) && mouseDown || keyReturn)
+            return GAME;
+        
+        drawScreen();
+    }
+}
+
+void pause()
+{}
+
+void learn()
+{}
+
+void credits()
+{}
+
+void beginSDL()
+{
+    //initialise SDL, print error and quit if fail
+    if(SDL_Init(SDL_INIT_AUDIO|SDL_INIT_VIDEO) < 0)
+    {
+        fprintf(stderr,
+                "Failed to Initialie SDL Video: %s\n",
+                SDL_GetError());
+        exit(1);
+    }
+    
+    //set up audio
+    if(Mix_OpenAudio(44100, AUDIO_S16SYS, 1, 22050) < 0)
+    {
+         fprintf(stderr,
+                 "Failed to Initialie SDL Sound: %s\n",
+                 SDL_GetError());
+         exit(1);
+    }
+   
+    // Load in the music
+    music = Mix_LoadMUS("data/sounds/music.mid");
+    // And sound effects
+    //spawn = Mix_LoadWAV("data/sounds/spawn.wav");
+    
+    //make it auto quit SDL upon program close
+    atexit(SDL_Quit);
+    
+    //set up video. print error and quit if fail.
+    
+    if (FULLSCREEN)    
+        screen = SDL_SetVideoMode(WINDOW_WIDTH,
+                                  WINDOW_HEIGHT,
+                                  WINDOW_DEPTH,
+                                  SDL_HWSURFACE|
+                                  SDL_DOUBLEBUF|
+                                  SDL_FULLSCREEN|
+                                  SDL_RLEACCEL);
+    else
+        screen = SDL_SetVideoMode(WINDOW_WIDTH,
+                                  WINDOW_HEIGHT,
+                                  WINDOW_DEPTH,
+                                  SDL_HWSURFACE|
+                                  SDL_DOUBLEBUF|
+                                  SDL_RLEACCEL); //SDL_NOFRAME to hide menu bar
+    if(screen == NULL)
+    {
+        fprintf(stderr,
+                "Unable to set video mode: %s\n",
+                SDL_GetError());
+        exit(1);          
+    }
+            
+    //set caption
+    SDL_WM_SetCaption("Dodgeball", NULL);
+    
+    //quickly put up loading screen while images load.
+    SDL_Surface* loading =  SDL_LoadBMP("data/images/loading.bmp");
+    drawImage(loading, screen,0,0);
+    SDL_Flip(screen);
+    
+    //update timer to time we stated
+    origTime = SDL_GetTicks();
+
+    int r = 255;
+    int g = 0;
+    int b = 255;
+    for (int i = 0; i < imageCount; i++)
+    {
+        string location = "data/images/" + imageNames[i] + ".bmp";
+        img[imageNames[i]] = SDL_LoadBMP(location.c_str());
+        SDL_SetColorKey(img[imageNames[i]], SDL_SRCCOLORKEY,
+                        SDL_MapRGB(img[imageNames[i]]->format, r, g, b));
+    }
+    
+    //hide mouse
+    SDL_ShowCursor(0);  
+    
+    //set top icon
+    SDL_WM_SetIcon(img["icon"], NULL);
+    
+    //open TTF
+    TTF_Init();
+    
+    // Open our font and set its size to the given parameter. //
+    font = TTF_OpenFont("comic.ttf", FONTSIZE);
+}
+
+void endSDL()
+{ 
+    drawImage(img["quit"], screen,0,0);
+    SDL_Flip(screen);
+    
+    //clear up images    
+    for(int i = 0; i < imageCount; i++)
+    {
+        SDL_FreeSurface(img[imageNames[i]]);
+    }
+    
+    // Free the sounds
+    Mix_FreeMusic(music);
+    //Mix_FreeChunk(spawn);
+    
+    // Close the font.
+    TTF_CloseFont(font);
+    
+    //free TTF fonts.
+    TTF_Quit();
+}
+
+int getUI()
+{
+    //check user input
+    
+    mouseDown = false;
+        
+    SDL_Event event;
+    while(SDL_PollEvent(&event))
+    {
+        switch(event.type)
+        {
+            case SDL_QUIT://if they hit the X
+                 isRunning = false;
+                 STATE = QUIT;
+                 break;
+                                  
+            case SDL_MOUSEBUTTONDOWN:
+                 mouseDown = true;
+                 break;
+        }
+        
+       keyUp     = false;
+       keyDown   = false;
+       keyLeft   = false;
+       keyRight  = false;
+       keyReturn = false;
+       keySpace  = false;
+       keyM      = false;
+       keyEsc    = false;
+       
+       Uint8* keys = SDL_GetKeyState(NULL);
+       if ( (keys[SDLK_UP]) )     { keyUp     = true; }
+       if ( (keys[SDLK_DOWN]) )   { keyDown   = true; }
+       if ( (keys[SDLK_LEFT]) )   { keyLeft   = true; }
+       if ( (keys[SDLK_RIGHT]) )  { keyRight  = true; }
+       if ( (keys[SDLK_RETURN]) ) { keyReturn = true; }
+       if ( (keys[SDLK_SPACE]) )  { keySpace  = true; }
+       if ( (keys[SDLK_m]) )      { keyM      = true; }
+       if ( (keys[SDLK_ESCAPE]) ) { keyEsc    = true; }
+        
+        // set mouseX and mouseY
+        SDL_GetMouseState(&mouseX, &mouseY);
+        
+        if (keyM)
+           mute = toggle(mute);
+    }
+}
+
+void drawImage(SDL_Surface *img,
+               SDL_Surface *dest,
+               int x,
+               int y)
+{
+    SDL_Rect rect;
+    rect.x = x;
+    rect.y = y;
+    rect.w = img->w;
+    rect.h = img->h;
+    SDL_BlitSurface(img, NULL, dest, &rect);
+}
+
+void drawScreen()
+{
+    //only bother if it is time.
+    updateTimer();
+    if(Timer <= LastUpdate + FRAME_RATE)
+       SDL_Delay((LastUpdate + FRAME_RATE) - Timer);
+    LastUpdate = Timer;
+    
+    //if we're still in...
+    couter(); // cout some data.
+        
+    //draw scene
+    switch(STATE)
+    {
+        case MENU:
+             drawImage(img["menu"], screen, 0, 0);
+             
+             if(Play.inBounds(mouseX, mouseY))
+             {
+                 drawImage(img["play2"], screen, Play.x-18, Play.y-26);
+                 DisplayText("Play the game!", 54, 210);
+             }
+                 
+             if(Quit.inBounds(mouseX, mouseY))
+             {
+                 drawImage(img["x2"], screen, Quit.x-20, Quit.y);
+                 DisplayText("Quit the Program!", 54, 210);
+             }
+                 
+             if(Learn.inBounds(mouseX, mouseY))
+             {
+                 drawImage(img["learn2"], screen, Learn.x-11, Learn.y-5);
+                 DisplayText("Learn how to play the game!", 54, 210);
+             }
+                 
+             if(Credits.inBounds(mouseX, mouseY))
+             {
+                 drawImage(img["credits2"], screen, Credits.x-13, Credits.y+6);
+                 DisplayText("A List of Dean and his friends!", 54, 210);
+             }
+             
+             drawImage(img["cursor"], screen,
+                       mouseX - (CURSORD/2),
+                       mouseY - (CURSORD/2));
+             break;
+            
+       case GAME:
+            //draw arena
+            drawImage(img["arena"], screen, 0, 0);
+            
+            //draw either cursor or man
+            if (outOfBounds(mouseX, mouseY))
+            {
+                drawImage(img["cursor"], screen,
+                          mouseX - (CURSORD/2),
+                          mouseY - (CURSORD/2));
+                paused = true;
+            }
+            else
+            {
+                man.draw();
+                paused = false;
+            }
+            
+            //draw balls
+            if (paused)
+            {
+                drawImage(img["paused"], screen,80,217);
+            }
+            else
+            {
+                for (vector<Ball*>::iterator pos = BallVector.begin();
+                     pos != BallVector.end(); pos ++)
+                {
+                     (*pos)->moveBall();
+                     if ((*pos)->beenHit)
+                     {
+                         BallVector.erase((pos));
+                         pos = BallVector.begin();
+                         Balls--;
+                     }
+                }
+            }
+            
+            printDetails();
+            
+            break;
+    }
+    
+    //output to screen
+    SDL_Flip(screen);
+}
+
+int Random(int X, int Y)// returns a random number beteen X and Y
+{
+   return X + rand()%(Y-X+1);
+}
+
+bool outOfBounds(int x, int y)
+{
+    if (x < ARENAX || x > ARENAX+ARENAW || y < ARENAY || y > ARENAY+ARENAH)
+        return true;
+    else
+        return false;
+}
+
+void setupGame()
+{    
+    //reset some vars
+    Hit = 0;
+    GameSeconds = 0;
+    score = 0;
+    Balls = 0;
+    
+    if(!Mix_PlayingMusic())
+        Mix_PlayMusic(music, -1);
+            
+    man.reset();
+    
+    //make some balls
+    for (int i = 0; i < STARTBALLS; i ++)
+      newBall();
+}
+
+void newBall()
+{    
+  BallVector.push_back(new Ball);
+  //cout << "New Ball!" << endl;
+}
+
+void deleteBall()
+{
+   delete BallVector.back();
+   BallVector.pop_back(); 
+}
+
+void endGame()
+{    
+    // Fade out all the audio channels in 1 second
+    Mix_FadeOutChannel(-1, 1000);
+    // and the music in 1 second
+    Mix_FadeOutMusic(0);
+    
+    //delete the balls
+    while(!BallVector.empty())
+    {
+      deleteBall();
+    }
+}
+
+inline int about(int num, int tolerance = 10) // Function to randomise a given number
+{
+   int fraction = num * tolerance/100; // find 'tolerance' percent of 'num' 
+   int min = num - fraction/2; // create min and max ints, of 'tolerance'
+   int max = num + fraction/2; // distance apart, w/ 'num' in the middle
+   return Random(min, max);
+}
+
+inline int square(int x)
+{
+  return x * x;
+}
+
+inline int distance(int X1, int Y1, int X2, int Y2)
+{
+  int distance = (int)sqrt( (double)((square(X2-X1)) + (square(Y2-Y1))) );
+  return distance;
+}
+
+inline int abs(int x)
+{
+  if (x < 0)
+    x *= -1;
+  return x;
+}
+
+inline void updateTimer()
+{
+    Timer = SDL_GetTicks() - origTime;
+    
+    int tempSec = Seconds;
+    Seconds = Timer / 1000;
+    
+    if (tempSec != Seconds)
+    {
+       OldFrames = Frames;
+       Frames = 0;
+       if (!paused)
+       {
+           GameSeconds ++;
+           updateScore();
+       }
+    }
+}
+
+bool toggle(bool option)
+{
+     //toggles a bool true/false     
+     if (option)
+        option = false;
+     else
+         option = true;
+     return option;
+}
+
+void couter()
+{            
+    //couts data to stdout.txt
+    if (Frames == 0)
+       cout << "\nIt is now second " << Seconds << endl;
+    
+    cout << "Frame " << ++Frames;
+    
+cout << " | ";
+
+    cout << "STATE: ";
+    switch(STATE)
+    {
+    case GAME:
+         cout << "GAME";
+         break;
+    case MENU:
+         cout << "MENU";
+         break;
+    case LEARN:
+         cout << "LEARN";
+         break;
+    case CREDITS:
+         cout << "CREDITS";
+         break;
+    case QUIT:
+         cout << "QUIT";
+         break;
+    }
+    
+cout << " | ";
+
+    
+cout << endl;
+
+}
+
+string wordNum(int num)
+{
+//converts the passed integer into a string.
+
+//just in case we need it later, back up num
+const int origNum = num;
+
+//Create strings that will represent the number
+string sSign = "";
+string sNumber = "";
+string sHundred = "";
+string sThousand = "";
+string sMillion = "";
+string sBillion = "";
+//create an array w/ base numbers
+string saNums[10] = {"Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"};
+string saTens[8] = {"Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"};
+
+
+//if it's a neg, set a value for later use
+if(num<0)
+{
+ num = 0-num; //  make absolute value
+ sSign = "Negative ";
+}
+//num is hereby a positive
+
+//if it's a basic number, return that
+if(num==1000)
+ return sSign + "One Thousand";
+
+if(num==10000)
+ return sSign + "Ten Thousand";
+
+if(num==100000)
+ return sSign + "One Hundred Thousand";
+
+if(num==1000000)
+ return sSign + "One Million";
+ 
+if(num==10000000)
+ return sSign + "Ten Million";
+ 
+if(num==100000000)
+ return sSign + "One Hundred Million";
+
+if(num==1000000000)
+ return sSign + "One Billion";
+
+/*
+//if it's out of range return that (impliment basic conversion here)
+if (origNum>1000000000)
+ return "More than One Billion!";
+
+if (origNum<-1000000000)
+ return "Less than Negative One Billion!";
+*/
+
+if (num > 1000000000)
+{
+    if (num < 1000000100)
+       sBillion = "One Billion and ";
+    else
+       sBillion = "One Billion, ";
+    num -= 1000000000;
+}
+
+//If it's between one and nine (inclusive), set it.
+if(num>=0 && num<10)
+ sNumber = saNums[num];
+
+//if it's exactly one, two, or ninety nine million, return that.
+for (int i = 1; i < 1001; i++)
+{
+    if (num == 1000000 * i)
+    return sSign + wordNum(num/1000000) + " Million";
+}
+
+//if it's between one million and one hundred million (non inclusive),
+//then set sThousand to be wordNum of the thousands, + " Thousand ". 
+if (num > 1000000 && num < 1000000000)
+ sMillion = wordNum(num/1000000) + " Million, ";
+
+for (int i = 1; i < 1000001; i++)
+{
+    if (num >= 1000000 * i && num < (1000000 * i) + 100)
+    sMillion = wordNum(num/1000000) + " Million and ";
+}
+
+//chop millions
+if(num>=1000000)//if it's one million or more, 
+   for(int i = 1; i<1000; i++) // for i = 1 thru 99
+      if (num>=1000000*i && num < (1000000*i) + 1000000) //if it's between eg, 200000 & 300000
+         num -= 1000000*i;//chop off the millions
+
+//if it's between one thousand and one million (non inclusive),
+//then set sThousand to be wordNum of the thousands, + " Thousand ". 
+if (num > 1000 && num < 1000000)
+ sThousand = wordNum(num/1000) + " Thousand, ";
+
+//BUT if it's between one thousand, and one thousand, one hundred
+//for example: one thousand and one, or one thousand and ninety nine
+//then make it say " thousand and " instead of the old " Thousand, ".
+//"One Thousand, One" sounds silly.
+for (int i = 1; i < 1001; i++)
+{
+    if (num >= 1000 * i && num < (1000 * i) + 100)
+    sThousand = wordNum(num/1000) + " Thousand and ";
+}
+
+//if it's exactly one, two, or ninety nine thousand, return that.
+for (int i = 1; i < 1001; i++)
+{
+    if (num == 1000 * i)
+    return sSign + wordNum(num/1000) + " Thousand";
+}
+
+//chop thoudsands
+if(num>=100000)//if it's one hundred thousand or more, 
+   for(int i = 1; i<10; i++) // for i = 1 thru 9
+      if (num>=100000*i && num < (100000*i) + 100000) //if it's between eg, 200000 & 300000
+         num -= 100000*i;//chop off the hundreds of thousands
+
+
+if(num>=10000)//if it's ten thousand or more, 
+  for(int i = 1; i<10; i++) // for i = 1 thru 9
+    if (num>=10000*i && num < (10000*i) + 10000) //if it's between eg, 20000 & 30000
+      num -= 10000*i;//chop off the tens of thousands
+
+if(num>=1000)//if it's one thousand or more
+  for(int i = 1; i<10; i++) // for i = 1 thru 9
+    if (num>=1000*i && num < (1000*i) + 1000) //if it's between for eg, 2000 & 3000
+      num -= 1000*i;//chop off the thousands.
+//we have hereby finished with tesn of thousands, and thousadsn operations. 
+
+//now work with the between one hundred and one thousand.
+if(num>=100)
+{
+ for(int i=1; i<10; i++)
+ {
+  if(num>=(100*i) && num < ((100*i)+100))
+  {
+   if(num==(100*i))
+   { 
+    sHundred = saNums[i] + " Hundred";
+    break;
+   }//End if perfect equal
+   else
+   {
+    num -= 100*i;
+    sHundred = saNums[i] + " Hundred and ";
+    break;
+   }
+  }//end if  exact hundred
+ }//end loop
+
+}
+
+//fix if it's not a base number
+
+
+if(num>=10)
+{
+ //if adding 'teen' to the end fixes it...
+ if(num==16 || num==17 || num==19)
+ {
+  num-=10;
+  sNumber = saNums[num] + "teen";
+ }
+ //Otherwise, things are a little more complex
+ else
+ {
+  switch(num)
+  {
+   case 10:
+    sNumber = "Ten";
+    break;
+
+   case 11:
+    sNumber = "Eleven";
+   break;
+
+   case 12:
+    sNumber = "Twelve";
+    break;
+
+   case 13:
+    sNumber = "Thirteen";
+    break;
+
+   case 14:
+    sNumber = "Fourteen";
+    break;
+
+   case 15:
+    sNumber = "Fifteen";
+    break;
+
+   case 18:
+    sNumber = "Eighteen";
+    break;
+
+   default:
+    for(int i=2; i<10; i++)
+    {
+     if(num>=(10*i) && num < ((10*i)+10))
+     {
+      if(num==(10*i))
+      { 
+       i-=2;
+       sNumber = saTens[i];
+       break;
+      }//End if perfect equal
+      else
+      {
+       num -= 10*i;
+       sNumber =  saTens[i-2] + " " + saNums[num];
+       break;
+      }
+     }//end if between 20 and 100
+    }//end loop
+   break;
+  }//end switch
+ }//end ifelse
+}//end if more than 10
+else
+{
+ sNumber = saNums[num];
+}
+
+string sResult = sSign + sBillion + sMillion + sThousand + sHundred + sNumber;
+if (sResult == "")
+   return "ERROR";
+else
+   return sResult;
+}//end wordNum fn
+
+
+
+void DisplayText(string text, int x, int y)
+{    
+    SDL_Color foreground = { 0, 0, 0};  // Text color. //
+    SDL_Color background = { 255, 0, 255 };  // Color of what's behind the text. //
+
+    // This renders our text to a temporary surface. There //
+    // are other text functions, but this one looks nice. //
+    SDL_Surface* temp = TTF_RenderText_Shaded(font, text.c_str(), foreground, background);
+
+    SDL_SetColorKey(temp, SDL_SRCCOLORKEY,SDL_MapRGB(temp->format, 255, 0, 255));
+    // A structure storing the destination of our text. //
+    SDL_Rect destination = { x, y, 0, 0 };
+
+    // Blit the text surface to our window surface, the NULL specifies the whole surface. //
+    SDL_BlitSurface(temp, NULL, screen, &destination);
+
+    // Always free memory! //
+    SDL_FreeSurface(temp);
+}
+
+void printDetails()
+{
+     const int H = FONTSIZE + 1;
+     int N = 0;
+     
+     if (paused)
+     {
+      DisplayText("PAUSED",RBARX,RBARY);
+      return;
+     }
+     
+     if(true)
+     {         
+         DisplayText("Timer:",RBARX,RBARY + (H*N++));
+         DisplayText(toString(Timer),RBARX,RBARY + (H*N++));
+         N++;
+         
+         DisplayText("Game Seconds:",RBARX,RBARY + (H*N++));
+         DisplayText(toString(GameSeconds),RBARX,RBARY + (H*N++));
+         N++;
+         
+         DisplayText("FPS:",RBARX,RBARY + (H*N++));
+         DisplayText(toString(OldFrames),RBARX,RBARY + (H*N++));
+         N++;
+         
+         DisplayText("Balls:",RBARX,RBARY + (H*N++));
+         DisplayText(toString(Balls),RBARX,RBARY + (H*N++));
+         N++;
+         
+         DisplayText("Middleness:",RBARX,RBARY + (H*N++));
+         DisplayText(toString(middleness),RBARX,RBARY + (H*N++));
+         N++;
+         
+         DisplayText("Hits:",RBARX,RBARY + (H*N++));
+         DisplayText(toString(Hit),RBARX,RBARY + (H*N++));
+         N++;
+         
+         DisplayText("Score:",RBARX,RBARY + (H*N++));
+         DisplayText(toString(score),RBARX,RBARY + (H*N++));
+         N++;
+         
+         if(slowBalls)
+         { 
+             DisplayText("SLOW",RBARX,RBARY + (H*N++));
+             N++;
+         }
+     }
+}
+
+void updateScore()
+{
+        //scoring
+        /*
+        each second
+        your points increase by
+        the number of balls on screen multiplied by your middleness
+        minus hits percent
+        
+        eg 10 balls on screen, multiplied by 5 middlesness = 50 pts
+        and you've been hit 10 times, so 10% of your points are filtered out
+        so you get 45 points that second.
+        */
+        
+        middleness = 5 - (distance(mouseX, mouseY, ARENAX + (ARENAW/2), ARENAY + (ARENAH/2)) / 50);
+        if (middleness < 0)
+           middleness = 0;
+        int oldScore = score;
+        double newScore = Balls * middleness;
+        int tempHit = Hit;
+        if (tempHit > 99)
+           tempHit = 99;
+        double fraction = 100/(100-tempHit);
+        newScore *= fraction;
+        score = oldScore + (int)newScore;
+}

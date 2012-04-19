@@ -1,0 +1,17 @@
+//You can set your own prepherences here.
+
+
+//This will run the game in full-screen mode.
+//enter either true or false
+FULLSCREEN = true
+
+
+//This is the minimum speed a ball might move (2 digits)
+//speed = (pixels/frame)
+MINBALLSPEED = 06
+
+
+//This is the maximum speed a ball might move
+MAXBALLSPEED = 12
+
+//End of File

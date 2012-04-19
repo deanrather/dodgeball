@@ -1,0 +1,53 @@
+
+Stuff to do:
+* FIX MUSIC
+* SPLIT UP FILES
+
+//SDL keyboard input
+http://gpwiki.org/index.php/C:SDL_Keyboard_Input_using_an_Event_Loop
+
+
+* get music pausing right
+* get / impliment more music/sound
+* make the arena area render 60 fps, and the menu only 30 fps, while !paused
+* make the arena area render once, and the menu area at 60 fps when paused.
+* make it so in order to unpause the man must not only be back on the arena,
+  but back on the arena in the same place as he aws when you paused it. (tip:
+  make a marker or something.
+* make markers on the horz and vert borders that follow the man.
+* get text writing better
+* fill in blank text box space
+* make it so when you game over, it offers a tip of how to do better next time.
+
+player health
+
+Bonuses to impliment:
+* extra lives
+* emp (3 total, maybe + pickup)
+* inverter (10 seconds, regens, inverted while holding)
+* slower (5 seconds, regens over 50 seconds)
+
+Extra Lives - Replenishes your Grimmaces.
+SLOW - Slows Stuff
+Explosives - Decreases the amount of dodgeballs.
+Overshield - Shield's you for one hit.
+Inverter - Make all of the balls turn around and go backwards.
+Forks - Makes dodgeballs pop when you hit them.
+
+
+stuff to fix:
+* frame rate regulation.
+
+Notes:
+be sure to include:
+E:\Dev-Cpp\include\SDL
+E:\Dev-Cpp\include\FMOD
+
+SDL documentation:
+http://sdldoc.csn.ul.ie/index.php
+
+CREDITS:
+Game: Dean Rather
+Orig Game Music: Cool Spot
+Game Music: Robbie Gifford
+Namer of main characer (Grimace): Nathan Leong.

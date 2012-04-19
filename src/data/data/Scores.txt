@@ -1,0 +1,10 @@
+>Player 10, 222088
+>Player 7, 63818
+>Player 4, 52946
+>Player 3, 40582
+>Player 8, 39190
+>Player 5, 30038
+>Player 6, 21442
+>Player 1, 15272
+>Player 2, 14230
+>Player 9, 11656
